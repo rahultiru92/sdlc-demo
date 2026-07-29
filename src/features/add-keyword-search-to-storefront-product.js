@@ -11,6 +11,21 @@
 const MAX_QUERY_LENGTH = 200;
 
 /**
+ * Escapes characters that have special meaning in HTML to prevent XSS.
+ *
+ * @param {string} str - Raw string to escape.
+ * @returns {string} HTML-safe string.
+ */
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
  * Validates the search query parameter.
  *
  * Rules:
@@ -61,6 +76,15 @@ function validateSearchQuery(query) {
  * @returns {{ results?: Array, error?: string, empty?: boolean }}
  */
 function searchProducts(products, query) {
+  // --- Validate the products catalogue ---
+  if (!Array.isArray(products)) {
+    return { error: "Product catalogue must be an array." };
+  }
+
+  if (products.length === 0) {
+    return { results: [], empty: true, message: "No products are currently available." };
+  }
+
   // --- Input validation (addresses review comment) ---
   const validation = validateSearchQuery(query);
   if (!validation.valid) {
@@ -94,6 +118,12 @@ function searchProducts(products, query) {
  * @returns {string} HTML markup for the search bar.
  */
 function renderSearchBar(currentQuery = "") {
+  // Guard: coerce non-string values to an empty string to avoid a runtime crash
+  // on .replace() and to prevent unexpected output in the rendered HTML.
+  if (typeof currentQuery !== "string") {
+    currentQuery = "";
+  }
+
   const safeQuery = currentQuery.replace(/"/g, "&quot;");
   return `
     <form class="storefront-search" action="/search" method="GET" role="search">
@@ -125,14 +155,14 @@ function renderSearchResults(products, query) {
 
   if (searchOutcome.error) {
     return {
-      html: `<p class="search-error">${searchOutcome.error}</p>`,
+      html: `<p class="search-error">${escapeHtml(searchOutcome.error)}</p>`,
       error: searchOutcome.error,
     };
   }
 
   if (searchOutcome.empty) {
     return {
-      html: `<p class="search-empty">${searchOutcome.message}</p>`,
+      html: `<p class="search-empty">${escapeHtml(searchOutcome.message)}</p>`,
     };
   }
 
@@ -140,10 +170,10 @@ function renderSearchResults(products, query) {
     .map(
       (product) => `
       <li class="search-result-item">
-        <a href="/products/${product.id}">
-          <strong>${product.name}</strong>
+        <a href="/products/${escapeHtml(product.id)}">
+          <strong>${escapeHtml(product.name)}</strong>
         </a>
-        <p>${product.description}</p>
+        <p>${escapeHtml(product.description)}</p>
       </li>`
     )
     .join("\n");
